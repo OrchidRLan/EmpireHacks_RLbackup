@@ -473,50 +473,67 @@ function NotificationStage() {
 }
 
 /* ─────────────────────────────────────────
-   Pipeline connector bar (top of page)
+   Stage id type + palette (shared)
 ───────────────────────────────────────── */
-function PipelineBar({ currentPhase }: { currentPhase: string }) {
-  const stages = [
-    { id: 'search', label: 'Search', icon: Search, color: 'indigo' },
-    { id: 'filter', label: 'Filtering', icon: Filter, color: 'sky' },
-    { id: 'negotiate', label: 'Negotiation', icon: MessageSquare, color: 'violet' },
-    { id: 'notify', label: 'Notification', icon: Bell, color: 'amber' },
-  ] as const
+type StageId = 'search' | 'filter' | 'negotiate' | 'notify'
 
-  const activeIdx = stages.findIndex(s => currentPhase.startsWith(s.id.slice(0, 4)))
-  const effectiveIdx = activeIdx === -1 ? 1 : activeIdx
+const STAGES: { id: StageId; label: string; icon: React.ElementType; color: 'indigo' | 'sky' | 'violet' | 'amber' }[] = [
+  { id: 'search',    label: 'Search',       icon: Search,         color: 'indigo' },
+  { id: 'filter',    label: 'Filtering',    icon: Filter,         color: 'sky'    },
+  { id: 'negotiate', label: 'Negotiation',  icon: MessageSquare,  color: 'violet' },
+  { id: 'notify',    label: 'Notification', icon: Bell,           color: 'amber'  },
+]
 
-  const palette = {
-    indigo: 'bg-indigo-500 text-white',
-    sky:    'bg-sky-500 text-white',
-    violet: 'bg-violet-500 text-white',
-    amber:  'bg-amber-500 text-white',
-  }
+const PALETTE = {
+  indigo: { pill: 'bg-indigo-500 text-white', ring: 'ring-2 ring-indigo-400 dark:ring-indigo-500', glow: 'shadow-indigo-100 dark:shadow-indigo-900/50' },
+  sky:    { pill: 'bg-sky-500 text-white',    ring: 'ring-2 ring-sky-400 dark:ring-sky-500',       glow: 'shadow-sky-100 dark:shadow-sky-900/50'     },
+  violet: { pill: 'bg-violet-500 text-white', ring: 'ring-2 ring-violet-400 dark:ring-violet-500', glow: 'shadow-violet-100 dark:shadow-violet-900/50'},
+  amber:  { pill: 'bg-amber-500 text-white',  ring: 'ring-2 ring-amber-400 dark:ring-amber-500',   glow: 'shadow-amber-100 dark:shadow-amber-900/50'  },
+}
+
+/* ─────────────────────────────────────────
+   Pipeline connector bar — interactive tabs
+───────────────────────────────────────── */
+function PipelineBar({
+  currentPhase, selected, onSelect,
+}: {
+  currentPhase: string
+  selected: StageId | null
+  onSelect: (id: StageId) => void
+}) {
+  const runningIdx = STAGES.findIndex(s => currentPhase.startsWith(s.id.slice(0, 4)))
+  const effectiveRunning = runningIdx === -1 ? 1 : runningIdx
 
   return (
     <div className="shrink-0 flex items-center justify-center gap-0 px-6 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-      {stages.map((stage, i) => {
+      {STAGES.map((stage, i) => {
         const Icon = stage.icon
-        const isActive = i === effectiveIdx
-        const isDone = i < effectiveIdx
+        const isRunning = i === effectiveRunning
+        const isDone = i < effectiveRunning
+        const isSelected = selected === stage.id
         return (
           <div key={stage.id} className="flex items-center">
-            <div className={cn(
-              'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all',
-              isActive
-                ? palette[stage.color]
-                : isDone
-                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-            )}>
-              {isDone
+            <button
+              onClick={() => onSelect(stage.id)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all duration-150',
+                isSelected
+                  ? PALETTE[stage.color].pill + ' shadow-md scale-105'
+                  : isRunning
+                  ? PALETTE[stage.color].pill + ' opacity-70'
+                  : isDone
+                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:opacity-80'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              )}
+            >
+              {isDone && !isSelected
                 ? <CheckCircle2 size={11} />
-                : <Icon size={11} className={isActive ? '' : 'opacity-50'} />
+                : <Icon size={11} className={isRunning && !isSelected ? 'opacity-70' : ''} />
               }
               {stage.label}
-              {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />}
-            </div>
-            {i < stages.length - 1 && (
+              {isRunning && !isSelected && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 animate-pulse" />}
+            </button>
+            {i < STAGES.length - 1 && (
               <ArrowRight size={12} className="mx-1 text-slate-300 dark:text-slate-600" />
             )}
           </div>
@@ -532,6 +549,20 @@ function PipelineBar({ currentPhase }: { currentPhase: string }) {
 export function PanelAgent() {
   const { agentStatus, toggleAgent, preferences, updateNegotiation } = useStore()
   const [showConfig, setShowConfig] = useState(false)
+  const [selectedStage, setSelectedStage] = useState<StageId | null>(null)
+
+  function handleSelectStage(id: StageId) {
+    setSelectedStage(prev => prev === id ? null : id)
+  }
+
+  // Column visibility: all visible, but selected one is highlighted, others dimmed
+  function colClass(id: StageId) {
+    if (!selectedStage) return 'transition-all duration-200'
+    const color = STAGES.find(s => s.id === id)!.color
+    return selectedStage === id
+      ? cn('transition-all duration-200 shadow-lg', PALETTE[color].ring, PALETTE[color].glow)
+      : 'transition-all duration-200 opacity-40'
+  }
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -546,10 +577,13 @@ export function PanelAgent() {
         )}>
           <span className={cn('w-2 h-2 rounded-full shrink-0', agentStatus.isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400')} />
           <Bot size={12} />
-          {agentStatus.currentAction}
+          <span className={agentStatus.isRunning ? '' : 'text-slate-400'}>
+            {agentStatus.isRunning ? 'Running' : 'Paused'}
+          </span>
           <span className="ml-auto flex items-center gap-3 text-[10px] opacity-70">
-            <span>{agentStatus.matchesFound} matches</span>
+            <span>{agentStatus.matchesFound} matches found</span>
             <span>{agentStatus.negotiationsActive} negotiating</span>
+            <span>{agentStatus.toursScheduled} tour{agentStatus.toursScheduled !== 1 ? 's' : ''} scheduled</span>
           </span>
         </div>
         <Button
@@ -562,15 +596,19 @@ export function PanelAgent() {
         </Button>
       </div>
 
-      {/* ── Pipeline connector bar ── */}
-      <PipelineBar currentPhase={agentStatus.phase} />
+      {/* ── Pipeline bar — clickable tabs ── */}
+      <PipelineBar
+        currentPhase={agentStatus.phase}
+        selected={selectedStage}
+        onSelect={handleSelectStage}
+      />
 
       {/* ── 4-column pipeline (main content) ── */}
       <div className="flex-1 overflow-hidden grid grid-cols-4 divide-x divide-slate-200 dark:divide-slate-700">
-        <SearchStage />
-        <FilteringStage />
-        <NegotiationStage />
-        <NotificationStage />
+        <div className={cn('h-full overflow-hidden', colClass('search'))}><SearchStage /></div>
+        <div className={cn('h-full overflow-hidden', colClass('filter'))}><FilteringStage /></div>
+        <div className={cn('h-full overflow-hidden', colClass('negotiate'))}><NegotiationStage /></div>
+        <div className={cn('h-full overflow-hidden', colClass('notify'))}><NotificationStage /></div>
       </div>
 
       {/* ── Agent config (collapsible footer) ── */}

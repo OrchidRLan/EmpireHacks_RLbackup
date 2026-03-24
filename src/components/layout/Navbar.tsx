@@ -59,7 +59,7 @@ export function Navbar() {
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             )}
           >
-            {tab === 'match' ? '🏠 Match' : '🤖 Agent'}
+            {tab === 'match' ? '🏠 Match' : '🤖 Agent Log'}
           </button>
         ))}
       </nav>
