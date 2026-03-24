@@ -1,73 +1,152 @@
-# React + TypeScript + Vite
+# 🏠 Rento
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Agent-powered apartment hunting and negotiation for NYC renters.**
 
-Currently, two official plugins are available:
+Rento scrapes listings from Craigslist and StreetEasy, analyzes them with Claude AI (vision + text), matches them to your preferences, and autonomously negotiates with landlords via email — all from a single dashboard.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Built for **[EmpireHacks 2026](https://cornell-tech-hackathon.vercel.app/)**.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## ⚡ Quick Start
 
-## Expanding the ESLint configuration
+### Prerequisites
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
+- An [Anthropic API key](https://console.anthropic.com/)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Setup
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+```bash
+# 1. Clone the repo
+git clone https://github.com/cornell-projects-alexgravx/rento.git
+cd rento
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 2. Configure environment
+cp .env.example .env
+# Edit .env
+# -> set ANTHROPIC_API_KEY
+# -> set POSTGRES_PASSWORD
+# -> set SMTP_USERNAME
+# -> set SMTP_PASSWORD
+# -> set JWT_SECRET
+
+# 3. Start everything
+docker compose up -d
+
+# 4. Open the app (locally)
+open http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+| Service   | URL                     |
+|-----------|-------------------------|
+| Frontend  | http://localhost:5173    |
+| API       | http://localhost:8000    |
+| API Docs  | http://localhost:8000/docs |
+| Mailpit   | http://localhost:8025    |
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    subgraph Frontend
+        UI["React + Vite + Tailwind"]
+        Store["Zustand Store"]
+        UI --- Store
+    end
+
+    subgraph Backend
+        API["FastAPI REST API"]
+        subgraph AI_Agents["AI Agents"]
+            A1["Agent 1 — Image Analysis"]
+            A2["Agent 2 — Semantic Matching"]
+            A3["Agent 3 — Autonomous Negotiation"]
+        end
+        Services["Matching & Scoring Services"]
+    end
+
+    subgraph Infrastructure
+        DB[("PostgreSQL")]
+        SMTP["Mailpit SMTP Server"]
+        Claude["Claude API — Anthropic"]
+    end
+
+    subgraph Data_Sources["Data Sources"]
+        CL["Craigslist Parser"]
+        SE["StreetEasy Parser"]
+    end
+
+    UI -- "REST /api/v1" --> API
+    API --> Services
+    API --> AI_Agents
+    A1 -- "Vision API" --> Claude
+    A2 -- "Text API" --> Claude
+    A3 -- "Text API" --> Claude
+    A3 -- "Sends emails" --> SMTP
+    Services --> DB
+    AI_Agents --> DB
+    API --> DB
+    CL --> DB
+    SE --> DB
 ```
+
+### Agent Pipeline
+
+| Agent | Role | How it works |
+|-------|------|--------------|
+| **Agent 1** — Image Analysis | Analyzes apartment photos for style/vibe labels | Sends images to Claude Vision → stores labels like `"bright"`, `"minimalist"`, `"hardwood-floors"` on each apartment |
+| **Agent 2** — Semantic Matching | Ranks apartments against user preferences | Cross-references image labels, neighborhood data, budget, and commute with user profile via Claude → outputs 0–10 scores |
+| **Agent 3** — Autonomous Negotiation | Handles landlord outreach end-to-end | Drafts inquiry emails → sends via SMTP → polls for host replies → analyzes responses → counter-offers or confirms → generates ICS calendar invites |
+
+All three agents are implemented as **LangGraph** state machines.
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| Backend | Python 3.12, FastAPI, SQLAlchemy |
+| AI | Claude 3.5 Sonnet, LangGraph |
+| Database | PostgreSQL 16 |
+| Email | Mailpit (dev), SMTP |
+| Infra | Docker Compose |
+
+### Project Structure
+
+```
+rento/
+├── frontend/               # React SPA
+│   └── src/
+│       ├── pages/           # Onboarding, Dashboard (Match, AgentLog)
+│       ├── store/           # Zustand global state
+│       ├── lib/             # API client, utilities
+│       └── components/      # Shared UI components
+├── backend/
+│   └── app/
+│       ├── agents/          # LangGraph AI agents (1, 2, 3)
+│       ├── routers/         # FastAPI route handlers
+│       ├── models/          # SQLAlchemy ORM models
+│       ├── services/        # Matching, scoring, commute
+│       └── schemas/         # Pydantic validation schemas
+│   └── parsers/             # Craigslist & StreetEasy scrapers
+└── docker-compose.yml
+```
+
+---
+
+## 👥 Contributors
+
+| Contributor | GitHub |
+|-------------|--------|
+| Ruolan Chen | [@OrchidRLan](https://github.com/OrchidRLan) |
+| Kerui Bai | [@KrisssWW](https://github.com/KrisssWW) |
+| Max Lytovka | [@Reymer249](https://github.com/Reymer249) |
+| Alexandre Gravereaux | [@alexgravx](https://github.com/alexgravx) |
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](./LICENSE).

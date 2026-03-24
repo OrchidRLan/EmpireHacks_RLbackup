@@ -1,0 +1,29 @@
+# Core
+sqlalchemy==2.0.*
+psycopg2-binary==2.9.*
+pydantic-settings==2.*
+python-dotenv==1.*
+
+# Craigslist RSS
+feedparser==6.*
+
+# StreetEasy / ZenRows
+requests==2.*
+beautifulsoup4==4.*
+lxml==5.*
+
+# Gmail
+google-auth==2.*
+google-auth-oauthlib==1.*
+google-auth-httplib2==0.*
+google-api-python-client==2.*
+
+# Scheduler
+APScheduler==3.*
+
+# Geocoding (optional)
+# geopy==2.*   # uncomment if you want geopy instead of raw Nominatim calls
+
+# Dev / testing
+pytest==8.*
+pytest-asyncio==0.*
